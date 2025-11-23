@@ -68,21 +68,35 @@ pipeline {
             steps {
                 script {
                     echo "🚀 Auto-deploying to TEST environment..."
-                    echo "🧹 Clearing old cached images on test server..."
+                    echo "🧹 Forcing fresh image pull..."
                     
                     sh """
                         ssh ${DOCKER_SERVER} '
                             cd ${TEST_DIR} && \
+                            echo "Stopping containers..." && \
                             docker-compose down && \
-                            docker rmi -f ${REGISTRY}/${IMAGE_NAME}:latest || true && \
+                            echo "Removing ALL cached blockapp images..." && \
+                            docker images | grep blockapp | awk "{print \\$3}" | xargs -r docker rmi -f || true && \
+                            echo "Pulling fresh image from registry..." && \
                             docker-compose pull && \
+                            echo "Starting with new image..." && \
                             docker-compose up -d && \
+                            echo "Verifying deployment..." && \
+                            docker ps | grep blockapp && \
                             echo "✅ Test deployment complete!"
                         '
                     """
                     
+                    // Get the image ID that's now running
+                    def imageId = sh(
+                        script: "ssh ${DOCKER_SERVER} 'docker inspect blockapp --format=\"{{.Image}}\"'",
+                        returnStdout: true
+                    ).trim()
+                    
                     echo """
-                    ✅ TEST ENVIRONMENT LIVE!
+                    ✅ TEST ENVIRONMENT DEPLOYED!
+                    
+                    🆔 Image ID: ${imageId}
                     
                     🌐 Test URLs:
                        Frontend: http://192.168.0.101:71
