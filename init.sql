@@ -1,0 +1,35 @@
+-- Create database
+CREATE DATABASE IF NOT EXISTS blockapp_db;
+USE blockapp_db;
+
+-- Counter table
+CREATE TABLE IF NOT EXISTS counters (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id VARCHAR(255) UNIQUE NOT NULL,
+  count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Activity log table
+CREATE TABLE IF NOT EXISTS activity_log (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id VARCHAR(255) NOT NULL,
+  action VARCHAR(50) NOT NULL,
+  value INT,
+  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES counters(user_id)
+);
+
+-- Metrics table
+CREATE TABLE IF NOT EXISTS metrics (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  metric_name VARCHAR(100) NOT NULL,
+  metric_value INT,
+  recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Allow root user to connect from any host
+ALTER USER 'root'@'%' IDENTIFIED BY '2070';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
