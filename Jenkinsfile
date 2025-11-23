@@ -49,15 +49,17 @@ pipeline {
                     sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:${env.GIT_COMMIT_SHORT}"
                     sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:latest"
                     
-                    // Push all tags
+                    // Push build number and commit hash first
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:build-${BUILD_NUMBER}"
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:${env.GIT_COMMIT_SHORT}"
+                    
+                    // Force push latest (this overwrites the old latest tag)
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:latest"
                     
                     echo "✅ Successfully pushed to registry!"
-                    echo "   - build-${BUILD_NUMBER}"
-                    echo "   - ${env.GIT_COMMIT_SHORT}"
-                    echo "   - latest (updated)"
+                    echo "   📦 build-${BUILD_NUMBER} (permanent)"
+                    echo "   🔖 ${env.GIT_COMMIT_SHORT} (git commit)"
+                    echo "   🆕 latest (updated - replaces old latest)"
                 }
             }
         }
@@ -66,12 +68,14 @@ pipeline {
             steps {
                 script {
                     echo "🚀 Auto-deploying to TEST environment..."
+                    echo "🧹 Clearing old cached images on test server..."
                     
                     sh """
                         ssh ${DOCKER_SERVER} '
                             cd ${TEST_DIR} && \
-                            docker-compose pull && \
                             docker-compose down && \
+                            docker rmi -f ${REGISTRY}/${IMAGE_NAME}:latest || true && \
+                            docker-compose pull && \
                             docker-compose up -d && \
                             echo "✅ Test deployment complete!"
                         '
