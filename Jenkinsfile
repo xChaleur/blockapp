@@ -76,7 +76,7 @@ pipeline {
                             echo "Stopping containers..." && \
                             docker-compose down && \
                             echo "Removing ALL cached blockapp images..." && \
-                            docker images | grep blockapp | awk "{print \\$3}" | xargs -r docker rmi -f || true && \
+                            docker images | grep blockapp | awk "{print \\\$3}" | xargs -r docker rmi -f || true && \
                             echo "Pulling fresh image from registry..." && \
                             docker-compose pull && \
                             echo "Starting with new image..." && \
