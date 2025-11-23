@@ -44,13 +44,20 @@ pipeline {
                 script {
                     echo "📤 Pushing to Docker Registry..."
                     
-                    sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+                    // Tag with build number and commit hash
+                    sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:build-${BUILD_NUMBER}"
+                    sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:${env.GIT_COMMIT_SHORT}"
                     sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${REGISTRY}/${IMAGE_NAME}:latest"
                     
-                    sh "docker push ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
+                    // Push all tags
+                    sh "docker push ${REGISTRY}/${IMAGE_NAME}:build-${BUILD_NUMBER}"
+                    sh "docker push ${REGISTRY}/${IMAGE_NAME}:${env.GIT_COMMIT_SHORT}"
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:latest"
                     
                     echo "✅ Successfully pushed to registry!"
+                    echo "   - build-${BUILD_NUMBER}"
+                    echo "   - ${env.GIT_COMMIT_SHORT}"
+                    echo "   - latest (updated)"
                 }
             }
         }
@@ -147,7 +154,8 @@ pipeline {
                     sh """
                         docker rmi ${IMAGE_NAME}:${BUILD_NUMBER} || true
                         docker rmi ${IMAGE_NAME}:${env.GIT_COMMIT_SHORT} || true
-                        docker rmi ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER} || true
+                        docker rmi ${REGISTRY}/${IMAGE_NAME}:build-${BUILD_NUMBER} || true
+                        docker rmi ${REGISTRY}/${IMAGE_NAME}:${env.GIT_COMMIT_SHORT} || true
                     """
                 }
             }
