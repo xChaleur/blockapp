@@ -71,7 +71,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Welcome to My React Webpage <span style={{ fontSize: '14px', color: '#999', marginLeft: '20px' }}>(v1.0.0)</span></h1>
+        <h1>Welcome to My React Webpage <span style={{ fontSize: '14px', color: '#999', marginLeft: '20px' }}>(v3.0.0)</span></h1>
         <p>This is a basic React application with modern styling.</p>
         
         <div className="counter-section">
