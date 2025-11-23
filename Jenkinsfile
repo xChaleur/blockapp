@@ -4,6 +4,9 @@ pipeline {
     environment {
         REGISTRY = '192.168.0.101:5000'
         IMAGE_NAME = 'blockapp'
+        DOCKER_SERVER = 'op1@192.168.0.101'
+        TEST_DIR = '~/blockapp'
+        PROD_DIR = '~/blockapp-prod'
     }
     
     stages {
@@ -13,6 +16,7 @@ pipeline {
                 checkout scm
                 script {
                     env.GIT_COMMIT_SHORT = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
+                    env.GIT_COMMIT_MSG = sh(returnStdout: true, script: "git log -1 --pretty=%B").trim()
                 }
             }
         }
@@ -21,6 +25,9 @@ pipeline {
             steps {
                 script {
                     echo "🔨 Building Docker image..."
+                    echo "Commit: ${env.GIT_COMMIT_SHORT}"
+                    echo "Message: ${env.GIT_COMMIT_MSG}"
+                    
                     sh """
                         docker build \
                         -t ${IMAGE_NAME}:${BUILD_NUMBER} \
@@ -28,16 +35,6 @@ pipeline {
                         .
                     """
                     echo "✅ Build complete!"
-                }
-            }
-        }
-        
-        stage('Manual Approval') {
-            steps {
-                script {
-                    echo "⏸️ Waiting for approval..."
-                    input message: 'Deploy this build to registry?', ok: 'Approve'
-                    echo "✅ Build approved!"
                 }
             }
         }
@@ -53,7 +50,92 @@ pipeline {
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:${BUILD_NUMBER}"
                     sh "docker push ${REGISTRY}/${IMAGE_NAME}:latest"
                     
-                    echo "✅ Successfully pushed images to registry!"
+                    echo "✅ Successfully pushed to registry!"
+                }
+            }
+        }
+        
+        stage('Deploy to Test') {
+            steps {
+                script {
+                    echo "🚀 Auto-deploying to TEST environment..."
+                    
+                    sh """
+                        ssh ${DOCKER_SERVER} '
+                            cd ${TEST_DIR} && \
+                            docker-compose pull && \
+                            docker-compose down && \
+                            docker-compose up -d && \
+                            echo "✅ Test deployment complete!"
+                        '
+                    """
+                    
+                    echo """
+                    ✅ TEST ENVIRONMENT LIVE!
+                    
+                    🌐 Test URLs:
+                       Frontend: http://192.168.0.101:71
+                       Backend:  http://192.168.0.101:5001
+                    
+                    🧪 Please test thoroughly before promoting to production.
+                    """
+                }
+            }
+        }
+        
+        stage('Promote to Production?') {
+            steps {
+                script {
+                    echo "⏸️ Testing complete. Ready to promote to PRODUCTION..."
+                    
+                    def promoteInput = input(
+                        id: 'PromoteToProd',
+                        message: 'Promote build #${BUILD_NUMBER} to PRODUCTION?',
+                        parameters: [
+                            choice(
+                                name: 'Action',
+                                choices: ['Approve', 'Reject'],
+                                description: 'Deploy to production environment'
+                            ),
+                            text(
+                                name: 'Notes',
+                                defaultValue: '',
+                                description: 'Deployment notes (optional)'
+                            )
+                        ]
+                    )
+                    
+                    if (promoteInput['Action'] == 'Approve') {
+                        echo "✅ Production deployment approved!"
+                        if (promoteInput['Notes']) {
+                            echo "📝 Notes: ${promoteInput['Notes']}"
+                        }
+                        
+                        echo """
+                        
+                        📋 PRODUCTION DEPLOYMENT INSTRUCTIONS:
+                        
+                        SSH into server:
+                            ssh op1@192.168.0.101
+                            
+                        Deploy to production:
+                            cd ~/blockapp-prod
+                            docker-compose pull
+                            docker-compose down
+                            docker-compose up -d
+                            
+                        Production URLs:
+                            Frontend: http://192.168.0.101:73
+                            Backend:  http://192.168.0.101:5003
+                        
+                        Or run this one-liner:
+                            ssh op1@192.168.0.101 'cd ~/blockapp-prod && docker-compose pull && docker-compose down && docker-compose up -d'
+                        """
+                        
+                    } else {
+                        echo "❌ Production deployment rejected"
+                        echo "Build remains in test environment only"
+                    }
                 }
             }
         }
@@ -75,21 +157,28 @@ pipeline {
     post {
         success {
             echo """
-            ✅ Pipeline completed!
+            ✅ ==========================================
+            ✅ PIPELINE COMPLETED SUCCESSFULLY!
+            ✅ ==========================================
             
-            🌐 View in Registry: http://192.168.0.101:8080
+            📦 Image: ${IMAGE_NAME}:${BUILD_NUMBER}
+            🔖 Commit: ${env.GIT_COMMIT_SHORT}
             
-            🚀 Deploy:
-               cd ~/blockapp
-               docker-compose pull && docker-compose up -d
-               
-            🌐 Access: 
-               http://192.168.0.101:71 (Frontend)
-               http://192.168.0.101:5001 (Backend)
+            🧪 TEST Environment (LIVE):
+               http://192.168.0.101:71
+               http://192.168.0.101:5001
+            
+            🌐 Registry UI:
+               http://192.168.0.101:8080
+            
+            ==========================================
             """
         }
         failure {
             echo "❌ Pipeline failed! Check logs above."
+        }
+        always {
+            sh 'docker system prune -f || true'
         }
     }
 }
