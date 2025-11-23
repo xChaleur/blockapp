@@ -135,32 +135,66 @@ pipeline {
                         if (promoteInput['Notes']) {
                             echo "📝 Notes: ${promoteInput['Notes']}"
                         }
-                        
-                        echo """
-                        
-                        📋 PRODUCTION DEPLOYMENT INSTRUCTIONS:
-                        
-                        SSH into server:
-                            ssh op1@192.168.0.101
-                            
-                        Deploy to production:
-                            cd ~/blockapp-prod
-                            docker-compose pull
-                            docker-compose down
-                            docker-compose up -d
-                            
-                        Production URLs:
-                            Frontend: http://192.168.0.101:73
-                            Backend:  http://192.168.0.101:5003
-                        
-                        Or run this one-liner:
-                            ssh op1@192.168.0.101 'cd ~/blockapp-prod && docker-compose pull && docker-compose down && docker-compose up -d'
-                        """
-                        
+                        env.DEPLOY_TO_PROD = 'true'
                     } else {
                         echo "❌ Production deployment rejected"
                         echo "Build remains in test environment only"
+                        env.DEPLOY_TO_PROD = 'false'
                     }
+                }
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                environment name: 'DEPLOY_TO_PROD', value: 'true'
+            }
+            steps {
+                script {
+                    echo "🚀 Deploying to PRODUCTION environment..."
+                    echo "🧹 Clearing production cache and deploying..."
+                    
+                    sh """
+                        ssh ${DOCKER_SERVER} '
+                            cd ${PROD_DIR} && \
+                            echo "Stopping production containers..." && \
+                            docker-compose down && \
+                            echo "Removing ALL cached blockapp images..." && \
+                            docker images | grep blockapp | awk "{print \\\$3}" | xargs -r docker rmi -f || true && \
+                            echo "Pulling fresh image from registry..." && \
+                            docker-compose pull && \
+                            echo "Starting production with new image..." && \
+                            docker-compose up -d && \
+                            echo "Verifying production deployment..." && \
+                            docker ps | grep blockapp-prod && \
+                            echo "✅ Production deployment complete!"
+                        '
+                    """
+                    
+                    // Get the image ID that's now running in production
+                    def prodImageId = sh(
+                        script: "ssh ${DOCKER_SERVER} 'docker inspect blockapp-prod --format=\"{{.Image}}\"'",
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo """
+                    ✅ ==========================================
+                    ✅ PRODUCTION DEPLOYED SUCCESSFULLY!
+                    ✅ ==========================================
+                    
+                    📦 Build: #${BUILD_NUMBER}
+                    🆔 Image ID: ${prodImageId}
+                    
+                    🌐 Production URLs:
+                       Frontend: http://192.168.0.101:73
+                       Backend:  http://192.168.0.101:5003
+                    
+                    🧪 Test URLs (still active):
+                       Frontend: http://192.168.0.101:71
+                       Backend:  http://192.168.0.101:5001
+                    
+                    ==========================================
+                    """
                 }
             }
         }
